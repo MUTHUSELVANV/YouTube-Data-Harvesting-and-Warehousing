@@ -15,9 +15,9 @@ st.set_page_config(page_title='YT Scrapper')
 
 # Youtube API Activating
 
-api_key ='AIzaSyBGDgcEWkoJn6ZLyTu0g7_P7ziagQDIjZQ'
-#api_key ='AIzaSyCaaoxSkYn_Pq_7KC5DGFlvXk0elqQiUKg' - QE 25/04
-#api_key='AIzaSyDWMR_rH6-nf_ebBKaK6iD-xGFYyGG1fhM' -QE24/04
+#api_key ='AIzaSyBGDgcEWkoJn6ZLyTu0g7_P7ziagQDIjZQ' - QE 27/05
+#api_key ='AIzaSyCaaoxSkYn_Pq_7KC5DGFlvXk0elqQiUKg' 
+api_key='AIzaSyDWMR_rH6-nf_ebBKaK6iD-xGFYyGG1fhM'
 #api_key ='AIzaSyDv3L3_VeV3NwOQqAQVq1C_j0QC3PG5CcA'
 #api_key ='AIzaSyBGvhoZsiYdBytd2LuG8bzqpvMBdCLNRx4'
 
@@ -382,7 +382,16 @@ for i in range(len(v_id)):
 client = MongoClient('mongodb://localhost:27017/')
 db = client['YT'] 
 collection = db['Channed_ID']
+collection.delete_many({})
+client.drop_database('YT')
+client.close()
 
+client = MongoClient('mongodb://localhost:27017/')
+db = client['YT'] 
+collection = db['Channed_ID']
+
+#if 'dub' not in st.session_state:
+#    st.session_state.flag=0
 # Variable created to ensure linear traverse
 flag=0
 
@@ -391,6 +400,8 @@ option = ["yes","no"]
 choice = st.selectbox('Are you done with extracting the Youtube Data', option, index=1)
 
 if choice=="yes":
+
+    collection.delete_many({})
 
     st.header("Exporting Data to MongoDB")
  
@@ -487,8 +498,6 @@ if choice=="yes":
         flag+=1
 
 
-
-
 if flag==1:  
     
     # Establishing a connection btw MongoDB & Python
@@ -504,10 +513,11 @@ if flag==1:
     myconnection = pymysql.connect(host='localhost', user='root', password='Muthu@123', autocommit=True )
     cursor = myconnection.cursor()
 
+
     # Create the MySQL database if it doesn't exist
     cursor.execute("CREATE DATABASE IF NOT EXISTS ytscrape")
+    cursor.execute("use ytscrape")
     myconnection.commit()
-    cursor.execute("USE ytscrape")
 
     # Create SQL table Channel
     cursor.execute("""
@@ -659,6 +669,7 @@ if flag==1:
                 """, (rass[0]['CommentID'][i], rass[0]['VID'][i], rass[0]['Comments'][i], rass[0]['Author'][i], published_date))        
 
             st.success(f"Channel data {sup[str(st.session_state.h)]['ChannelData']['channel_name']} inserted successfully! Click the above button to proceed")
+            del sup[st.session_state.h]
             
 
     # sk is just to pass as key inside the selectbox which keeps changing at each loop
@@ -673,11 +684,11 @@ if flag==1:
         st.session_state.dub = titleee
         st.session_state.win=''
         st.session_state.inox=0
-        st.session_state.choice=''
+        
 
     # Inputting the Channel to mitigate to MYSQL
     while  choice1=="YES":
-        if len(st.session_state.dub)> 0:
+        if len(st.session_state.dub)> 0 or choice=="YES":
             choice1='NO'
             st.header("Exporting Data to MySQL")
             st.write(st.session_state.dub)
@@ -686,28 +697,37 @@ if flag==1:
             extended_options = [default_value] + st.session_state.dub
             choice2 = st.selectbox('Which one do you want to export', extended_options,key=sk+100)
 
+            kol1,kol2,kol3,kol4,kol5 =st.columns(5)
+            with kol5:
+                next = st.checkbox(f'Move Next')
+                if next:
+                    flag+=1
+                    choice1="No"
+                    
             if choice2 == default_value:
                 st.write('select from the options')
+
             else:
                 inox = st.session_state.dub.index(choice2)
                 st.session_state.win=choice2
                 st.write(st.session_state.win)
                 st.write('length of title:',len(st.session_state.dub))
                 hmm = st.button(f'Export {st.session_state.win} to MySQL')
-                
                 if hmm:
                     mitigate(choice2)
-                    break
             sk+=1
-
+         
         else:
             choice1='NO'
             st.success('All Channels are Added')
             flag+=1
 
 
+
+
 # EDA on Data stored in MYSQL
-if flag == 2:
+while flag>1:
+    flag=2
     st.header("Retrieve data from the SQL database")
     st.info("""
     There are 3 Tables in MYSQL
@@ -729,7 +749,8 @@ if flag == 2:
     QChan=pd.DataFrame(QChan)
     Qcol = f"SHOW COLUMNS FROM channel"
     cursor.execute(Qcol)
-    QChan.columns = [column[0] for column in cursor.fetchall()]
+    column_names = [column[0] for column in cursor.fetchall()]
+    QChan.columns = column_names
 
 
     # Saving the video table as Dataframe as Qvid
@@ -817,7 +838,7 @@ if flag == 2:
         jet.columns=['Channel_Name','Total Videos']
         Qject = jet.sort_values('Total Videos', ascending=False)
         st.write('Top 5 Channels based on their No.of Videos',Qject.head(5))
- 
+
 
     if n1==3:
         query2 = """
@@ -936,57 +957,54 @@ if flag == 2:
         comb4 = combi4.sort_values('Comment Count', ascending=False) 
         st.write('Top 5 Most Commented Video with their Channel Name',comb4.head(5))
     
-    st.write('If you want to see some Plots with the data, click the button below:')
-    quan=st.button('View Plots')
+    st.subheader('If you want to see some Plots with the data, click the button below:')
+    quan=st.checkbox('View Plots')
     if quan:
-        flag+=1
-    
-# Showing some of the plots
-if flag==3:
-    st.header('will see some charts and graphs')
+        st.header('will see some charts and graphs')
 
-    st.write('Comparing the Subscribers Count between the channels:')
-    fig = plt.figure(figsize=(10, 4))
-    sns.barplot(x='channelName1',y='subsCount',data=QChan)
-    st.pyplot(fig)
+        st.write('Comparing the Subscribers Count between the channels:')
+        fig = plt.figure(figsize=(10, 4))
+        sns.barplot(x='channelName1',y='subsCount',data=QChan)
+        st.pyplot(fig)
 
-    st.write('Comparing the Total Views between the channels:')
-    fig1 = plt.figure(figsize=(10, 4))
-    sns.barplot(x='channelName1',y='views',data=QChan)
-    st.pyplot(fig1)
+        st.write('Comparing the Total Views between the channels:')
+        fig1 = plt.figure(figsize=(10, 4))
+        sns.barplot(x='channelName1',y='views',data=QChan)
+        st.pyplot(fig1)
 
-    st.write('Comparing the Total No.of Videos between the Channel:')
-    cna=list(Qvid['VideoTitle'])
-    fig2 = plt.figure(figsize=(10, 4))
-    sns.barplot(x='channelName1',y='totVid',data=QChan)
-    st.pyplot(fig2)
+        st.write('Comparing the Total No.of Videos between the Channel:')
+        cna=list(Qvid['VideoTitle'])
+        fig2 = plt.figure(figsize=(10, 4))
+        sns.barplot(x='channelName1',y='totVid',data=QChan)
+        st.pyplot(fig2)
 
-    st.write('Comparing the Total Views between the Videos:')
-    cna=list(Qvid['VideoTitle'])
-    fig3 = plt.figure(figsize=(10, 5))
-    sns.barplot(x='Views',y='VideoTitle',data=Qvid)
-    st.pyplot(fig3)
+        st.write('Comparing the Total Views between the Videos:')
+        cna=list(Qvid['VideoTitle'])
+        fig3 = plt.figure(figsize=(10, 5))
+        sns.barplot(x='Views',y='VideoTitle',data=Qvid)
+        st.pyplot(fig3)
 
-    st.write('Comparing the Total Likes between the Videos:')
-    fig4 = plt.figure(figsize=(10, 5))
-    sns.barplot(x='Likes',y='VideoTitle',data=Qvid)
-    st.pyplot(fig4)
+        st.write('Comparing the Total Likes between the Videos:')
+        fig4 = plt.figure(figsize=(10, 5))
+        sns.barplot(x='Likes',y='VideoTitle',data=Qvid)
+        st.pyplot(fig4)
 
-    Qvid['Date'] = pd.to_datetime(Qvid['PublishedDate'])
-    Qvid['Month'] = Qvid['Date'].dt.month
-    st.write('Comparing the published Month vs Views:')
-    fig5 = plt.figure(figsize=(10, 5))
-    sns.lineplot(x='Month',y='Views',data=Qvid)
-    st.pyplot(fig5)
+        Qvid['Date'] = pd.to_datetime(Qvid['PublishedDate'])
+        Qvid['Month'] = Qvid['Date'].dt.month
+        st.write('Comparing the published Month vs Views:')
+        fig5 = plt.figure(figsize=(10, 5))
+        sns.lineplot(x='Month',y='Views',data=Qvid)
+        st.pyplot(fig5)
 
-    Qvid['Date'] = pd.to_datetime(Qvid['PublishedDate'])
-    Qvid['Month'] = Qvid['Date'].dt.month
-    st.write('Comparing the published Month vs Likes:')
-    fig6 = plt.figure(figsize=(10, 5))
-    sns.lineplot(x='Month',y='Likes',data=Qvid)
-    st.pyplot(fig6)
+        Qvid['Date'] = pd.to_datetime(Qvid['PublishedDate'])
+        Qvid['Month'] = Qvid['Date'].dt.month
+        st.write('Comparing the published Month vs Likes:')
+        fig6 = plt.figure(figsize=(10, 5))
+        sns.lineplot(x='Month',y='Likes',data=Qvid)
+        st.pyplot(fig6)
+
+    flag-=1
 
     myconnection.commit()
     myconnection.close()
     mongo_client.close()
-    
